@@ -7,6 +7,7 @@ namespace PhpSoftBox\Cookie;
 use InvalidArgumentException;
 
 use function gmdate;
+use function preg_match;
 use function rawurlencode;
 use function sprintf;
 
@@ -26,6 +27,11 @@ final class SetCookie
     ) {
         if ($name === '') {
             throw new InvalidArgumentException('Cookie name must not be empty.');
+        }
+
+        // Имя — token из RFC 6265: без пробелов, `;`, `=`, CR/LF и других разделителей, иначе они допишут атрибуты.
+        if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $name) !== 1) {
+            throw new InvalidArgumentException(sprintf('Invalid cookie name "%s".', $name));
         }
     }
 
@@ -70,6 +76,10 @@ final class SetCookie
 
     public function withPath(?string $path): self
     {
+        if ($path !== null && preg_match('/[\x00-\x1F\x7F;]/', $path) === 1) {
+            throw new InvalidArgumentException('Cookie path must not contain ";" or control characters.');
+        }
+
         $clone       = clone $this;
         $clone->path = $path;
 
@@ -78,6 +88,10 @@ final class SetCookie
 
     public function withDomain(?string $domain): self
     {
+        if ($domain !== null && $domain !== '' && preg_match('/^\.?[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/', $domain) !== 1) {
+            throw new InvalidArgumentException(sprintf('Invalid cookie domain "%s".', $domain));
+        }
+
         $clone         = clone $this;
         $clone->domain = $domain;
 
