@@ -20,6 +20,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 use function explode;
 use function rawurldecode;
+use function str_starts_with;
 
 #[CoversClass(CookieMiddleware::class)]
 #[CoversMethod(CookieMiddleware::class, 'process')]
@@ -32,6 +33,7 @@ final class CookieEncryptionMiddlewareTest extends TestCase
     public function testDecryptsIncomingCookies(): void
     {
         $encryptor = new Encryptor(defaultKey: 'secret-key');
+
         $middleware = new CookieMiddleware(
             queue: new CookieQueue(),
             encryptor: $encryptor,
@@ -39,23 +41,25 @@ final class CookieEncryptionMiddlewareTest extends TestCase
         );
 
         $encrypted = $encryptor->encryptWithCurrentKey('value');
-        $request = (new ServerRequest('GET', 'https://example.com/'))
+        $request   = new ServerRequest('GET', 'https://example.com/')
             ->withCookieParams([
-                'foo' => $encrypted,
+                'foo'        => $encrypted,
                 'XSRF-TOKEN' => 'plain',
             ]);
 
         $captured = ['foo' => null, 'xsrf' => null];
 
         $handler = new class ($captured) implements RequestHandlerInterface {
-            public function __construct(private array &$captured)
-            {
+            public function __construct(
+                private array &
+            $captured,
+            ) {
             }
 
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
-                $cookies = $request->getCookieParams();
-                $this->captured['foo'] = $cookies['foo'] ?? null;
+                $cookies                = $request->getCookieParams();
+                $this->captured['foo']  = $cookies['foo'] ?? null;
                 $this->captured['xsrf'] = $cookies['XSRF-TOKEN'] ?? null;
 
                 return new Response(200);
@@ -75,6 +79,7 @@ final class CookieEncryptionMiddlewareTest extends TestCase
     public function testEncryptsOutgoingCookies(): void
     {
         $encryptor = new Encryptor(defaultKey: 'secret-key');
+
         $middleware = new CookieMiddleware(
             queue: new CookieQueue(),
             encryptor: $encryptor,
@@ -83,7 +88,7 @@ final class CookieEncryptionMiddlewareTest extends TestCase
 
         $request = new ServerRequest('GET', 'https://example.com/');
 
-        $handler = new class implements RequestHandlerInterface {
+        $handler = new class () implements RequestHandlerInterface {
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $queue = $request->getAttribute('cookie_queue');
@@ -101,10 +106,10 @@ final class CookieEncryptionMiddlewareTest extends TestCase
         $headers = $response->getHeader('Set-Cookie');
         $this->assertCount(2, $headers);
 
-        $fooHeader = $this->findHeaderByName($headers, 'foo');
+        $fooHeader  = $this->findHeaderByName($headers, 'foo');
         $xsrfHeader = $this->findHeaderByName($headers, 'XSRF-TOKEN');
 
-        $fooValue = $this->extractCookieValue($fooHeader);
+        $fooValue  = $this->extractCookieValue($fooHeader);
         $xsrfValue = $this->extractCookieValue($xsrfHeader);
 
         $this->assertSame('bar', $encryptor->decryptWithAnyKey($fooValue));
@@ -113,7 +118,7 @@ final class CookieEncryptionMiddlewareTest extends TestCase
 
     private function extractCookieValue(string $header): string
     {
-        $pair = explode(';', $header, 2)[0];
+        $pair  = explode(';', $header, 2)[0];
         $value = explode('=', $pair, 2)[1] ?? '';
 
         return rawurldecode($value);
