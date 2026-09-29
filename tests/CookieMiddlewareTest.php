@@ -10,6 +10,8 @@ use PhpSoftBox\Cookie\SetCookie;
 use PhpSoftBox\Http\Message\Response;
 use PhpSoftBox\Http\Message\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 final class CookieMiddlewareTest extends TestCase
@@ -28,14 +30,13 @@ final class CookieMiddlewareTest extends TestCase
 
         $handler = new class ($queue) implements RequestHandlerInterface {
             public function __construct(
-                private CookieQueue
-            $queue)
-            {
+                private CookieQueue $queue,
+            ) {
             }
 
             public function handle(
-                \Psr\Http\Message\ServerRequestInterface $request,
-            ): \Psr\Http\Message\ResponseInterface {
+                ServerRequestInterface $request,
+            ): ResponseInterface {
                 $this->queue->queue(SetCookie::create('c', '3'));
                 $value = (string) ($request->getCookieParams()['a'] ?? '');
 

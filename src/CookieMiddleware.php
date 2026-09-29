@@ -43,9 +43,17 @@ final class CookieMiddleware implements MiddlewareInterface
 
         $request = $request->withAttribute($this->attribute, $this->queue);
 
-        $response = $handler->handle($request);
+        // Очередь общая для процесса (синглтон в долгоживущем воркере): остатки прошлого запроса и cookie запроса,
+        // завершившегося исключением, не должны уйти следующему пользователю.
+        $this->queue->flush();
 
-        foreach ($this->queue->flush() as $cookie) {
+        try {
+            $response = $handler->handle($request);
+        } finally {
+            $cookies = $this->queue->flush();
+        }
+
+        foreach ($cookies as $cookie) {
             $cookie   = $this->encryptResponseCookie($cookie);
             $response = $response->withAddedHeader('Set-Cookie', $cookie->toHeader());
         }
@@ -77,7 +85,7 @@ final class CookieMiddleware implements MiddlewareInterface
             }
 
             try {
-                $decrypted[$name] = $this->encryptor->decryptWithAnyKey($value);
+                $decrypted[$name] = $this->encryptor->decryptWithAnyKey($value, $this->associatedData((string) $name));
             } catch (Throwable) {
                 // ignore invalid cookie values
             }
@@ -96,9 +104,17 @@ final class CookieMiddleware implements MiddlewareInterface
             return $cookie;
         }
 
-        $encrypted = $this->encryptor->encryptWithCurrentKey($cookie->value());
+        $encrypted = $this->encryptor->encryptWithCurrentKey($cookie->value(), $this->associatedData($cookie->name()));
 
         return $cookie->withValue($encrypted);
+    }
+
+    /**
+     * Шифртекст привязан к имени cookie: значение одной cookie не расшифруется как другая.
+     */
+    private function associatedData(string $name): string
+    {
+        return 'cookie:' . $name;
     }
 
     private function isExcluded(string $name): bool
