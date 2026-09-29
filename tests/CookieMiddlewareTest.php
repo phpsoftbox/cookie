@@ -30,8 +30,7 @@ final class CookieMiddlewareTest extends TestCase
 
         $handler = new class ($queue) implements RequestHandlerInterface {
             public function __construct(
-                private CookieQueue
-            $queue,
+                private CookieQueue $queue,
             ) {
             }
 
